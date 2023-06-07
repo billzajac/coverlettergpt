@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -46,6 +47,23 @@ func viperEnvVariable(key string) string {
 }
 
 func main() {
+	var debug bool
+	// Used to indicate the job description has been completely pasted
+	// Assumption: there aren't newline_max line breaks in the JD
+	var newline_max int
+	var help bool
+
+	flag.IntVar(&newline_max, "n", 3, "Newlines to indicate the end of the JD")
+	flag.BoolVar(&debug, "d", false, "DEBUG - Only show the prompt, do not submit it")
+	flag.BoolVar(&help, "h", false, "Help")
+	flag.Parse()
+
+	if help {
+		flag.PrintDefaults()
+		fmt.Println("\nAlso be sure to create a .env file with\n\nOPENAI_KEY=<YOUR_KEY>\nRESUME=\"<MULTI-LINE TEXT RESUME\" (don't forget the end quote)\n")
+		os.Exit(0)
+	}
+
 	key := viperEnvVariable("OPENAI_KEY")
 	resume := viperEnvVariable("RESUME")
 
@@ -84,24 +102,24 @@ func main() {
 
 	fmt.Printf("Job Description: ")
 	scanner = bufio.NewScanner(os.Stdin)
-	last_line_was_blank := false
-	blank_line_count := 0
+	newline_count := 0
 	var job_description []string
 	for {
 		scanner.Scan()
 		line := scanner.Text()
 		if len(line) == 0 {
-			if last_line_was_blank == true {
-				blank_line_count = blank_line_count + 1
-			}
-			if blank_line_count > 3 {
-				// Hopefully there aren't three consecutive line breaks in the JD - otherwise increase this
+			newline_count = newline_count + 1
+			if newline_count >= newline_max {
+				fmt.Println("\nSUBMITTING THE FOLLOWING PROMPT ==---->\n")
 				break
+			} else if newline_max-newline_count == 1 {
+				fmt.Printf("Press RETURN %d last time to submit the prompt...", newline_max-newline_count)
+			} else {
+				fmt.Printf("Press RETURN %d more times to submit the prompt...", newline_max-newline_count)
 			}
-			last_line_was_blank = true
 		} else {
-			last_line_was_blank = false
-			blank_line_count = 0
+			// reset the counter because we found more non-empty lines
+			newline_count = 0
 		}
 		job_description = append(job_description, line)
 	}
@@ -111,16 +129,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	//fmt.Println("output:")
-	//for _, l := range job_description {
-	//	fmt.Println(l)
-	//}
-
 	content := fmt.Sprintf("Write me a personalized cover letter explaining why I'm a great candidate for this job. My resume is here: %s\n\nThe job title is %s, the company is %s, and here is the job description: %s", resume, job_title, company_name, strings.Join(job_description, " "))
 
 	fmt.Println(content)
 	fmt.Println("------------------------------------------------\n\n")
-	// os.Exit(0)
+	if debug {
+		os.Exit(0)
+	}
 
 	res, err := c.Send(ctx, &chatgpt.ChatCompletionRequest{
 		Model: chatgpt.GPT4,

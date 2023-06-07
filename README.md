@@ -30,5 +30,6 @@ go build main.go
 
 ## TODO
 
+* Allow GPT model to be selectable (maybe with command line arg and/or .env)
 * Build a web interface
     * Probably will want auth with it too so that if I make it public, I can manage costs
